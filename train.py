@@ -138,16 +138,14 @@ if __name__ == '__main__':
     model = GPT(model_config)
 
     # model = AutoModel.from_pretrained("name")
-    
-
 
     train_config = Trainer.get_default_config()
     train_config.learning_rate = 1e-4 # many possible options, see the file
-    train_config.max_iters = 500
+    train_config.max_iters = 600
     train_config.num_workers = 0
     train_config.batch_size = 8
     trainer = Trainer(train_config, model, train_dataset, test_dataset=test_dataset)
-    max_runs = 5
+    max_runs = 6
     num_runs = 0
     while num_runs < max_runs:
         trainer.run()
@@ -158,6 +156,11 @@ if __name__ == '__main__':
             dollar_token = stoi['$'] 
             weird_move = stoi['a3']
             inp = torch.tensor([[dollar_token, weird_move]], dtype=torch.long).to(trainer.device)
+
+            weird_move2 = stoi['d4']
+            weird_move3 = stoi['c6']
+            weird_move4 = stoi['Na3']
+            inp2 = torch.tensor([[dollar_token, weird_move2, weird_move3, weird_move4]], dtype=torch.long).to(trainer.device)
             # inp = encode("e4")
             with torch.no_grad():
                 cat = model.generate(inp, block_size, do_sample=False)
@@ -167,7 +170,7 @@ if __name__ == '__main__':
                 illegal_move, move_num = find_illegal_move(generated_text, board)
                 print(f"The first illegal move is: {round(move_num/2) + 1}: {illegal_move}")
 
-                cat = model.generate(inp, block_size, do_sample=False, temperature=1)
+                cat = model.generate(inp2, block_size, do_sample=False, temperature=1)
                 generated_text = decode(cat[0].tolist())[2:]
                 print(generated_text)
                 board = chess.Board()
