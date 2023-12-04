@@ -116,7 +116,7 @@ class Trainer:
             self.iter_dt = tnow - self.iter_time
             self.iter_time = tnow
 
-            if self.iter_num % 150 == 0:
+            if self.iter_num % 50 == 0:
                 train_loss = self.loss.item()
                 test_loss = 0
                 num_test_iters = 20  # Number of iterations for test loss calculation

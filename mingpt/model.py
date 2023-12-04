@@ -331,21 +331,15 @@ class GPT(nn.Module):
             # move_arr = decode(targets.view(-1).cpu().numpy())
             # mat = generate_legal_moves(move_arr)
             logits = logits.cpu()
-            logits += 5
+            # logits += 1
             targets = targets.cpu()
     
-            illegal_mask = 5 * torch.ones(batch_size, sequence_length, self.vocab_size, dtype=torch.bool)
+            illegal_mask = torch.ones(batch_size, sequence_length, self.vocab_size, dtype=torch.bool)
 
              # Verify the shape of illegal_mask
             if illegal_mask.shape[0] != batch_size:
                 raise ValueError("Illegal mask batch size does not match targets batch size")
 
-    
-             # Fill the illegal moves mask safely
-            # for i, moves in enumerate(mat):
-            #     for move in moves:
-            #         if i < illegal_mask.size(1) and move < illegal_mask.size(-1):  # Adjusted index to -1 for last dimension
-            #             illegal_mask[0, i, move] = 1
 
                # Process each batch element
             for b in range(batch_size):
@@ -356,7 +350,7 @@ class GPT(nn.Module):
                 for i, moves in enumerate(mat):
                     for move in moves:
                         if move < illegal_mask.size(-1):
-                            illegal_mask[b, i, move] = 1
+                            illegal_mask[b, i, move] = 6
             
             # Create a mask for positive logits
             positive_logits_mask = logits > 0
@@ -402,6 +396,26 @@ class GPT(nn.Module):
             idx_cond = idx if idx.size(1) <= self.block_size else idx[:, -self.block_size:]
             # forward the model to get the logits for the index in the sequence
             logits, _ = self(idx_cond)
+
+            # Mask illegal moves based on the current sequence (idx)
+            idx_move_arr = decode(idx.view(-1).cpu().numpy())
+            # print("idx_move_arr", idx_move_arr)
+            legal_move_mat = generate_legal_moves("".join(idx_move_arr[1:]), True)
+            print("I've seen: ", idx_move_arr, "I can play: ", decode(legal_move_mat[0]))
+            illegal_mask = torch.zeros(logits.shape, dtype=torch.bool)
+            
+            for i, moves in enumerate(legal_move_mat):
+                for move in moves:
+                    illegal_mask[:, i, move] = True
+
+            
+            logits[illegal_mask] = -float('inf')
+
+            # print(logits.view(-1))
+            # Check for positive values in logits
+            positive_logits_mask = logits > 0
+            # print("Positive logits after masking:", logits[positive_logits_mask].view(-1))
+                    
             # pluck the logits at the final step and scale by desired temperature
             logits = logits[:, -1, :] / temperature
             # optionally crop the logits to only the top k options
@@ -417,5 +431,6 @@ class GPT(nn.Module):
                 _, idx_next = torch.topk(probs, k=1, dim=-1)
             # append sampled index to the running sequence and continue
             idx = torch.cat((idx, idx_next), dim=1)
+        
 
         return idx

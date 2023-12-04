@@ -47,21 +47,28 @@ def decode(l):
 
 ## input is 1 game of moves. output should be MxV matrix 
 
-def generate_legal_moves(move_string):
+def generate_legal_moves(move_string, p = False):
     moves = move_string.split()
     board = chess.Board()
     legal_move_mat = []
+
+    # print("moves", moves, p)
     for move in moves:
-        legal_moves = board.legal_moves
-        moves_str = ' '.join(str(board.san(move)) for move in legal_moves)
-        legal_move_mat.append(encode(moves_str))
         try:
             # Try to make the move on the board
             board.push_san(move)
+            legal_moves = board.legal_moves
+            moves_str = ' '.join(str(board.san(move)) for move in legal_moves)
+            # if p:
+            #     print(p, "legal", moves_str)
+            legal_move_mat.append(encode(moves_str))
         except ValueError:
             # If ValueError is raised, the move is illegal
+            print(p, ValueError, move)
+            
             break
 
+    
 
     return legal_move_mat
     
