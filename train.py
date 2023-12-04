@@ -69,6 +69,7 @@ for i in range(len(val_data) - block_size):
     if [segment[0].item()] == money_encode:
         start_indices_val.append(i)
 
+print(f"Games: {len(start_indices_train)}")
 class TextDataset(Dataset):
     def __init__(self, data, start_indices, block_size):
         self.data = data
@@ -140,12 +141,12 @@ if __name__ == '__main__':
     # model = AutoModel.from_pretrained("name")
 
     train_config = Trainer.get_default_config()
-    train_config.learning_rate = 1e-4 # many possible options, see the file
-    train_config.max_iters = 600
+    train_config.learning_rate = 9e-5 # many possible options, see the file
+    train_config.max_iters = 1500
     train_config.num_workers = 0
-    train_config.batch_size = 8
+    train_config.batch_size = 4
     trainer = Trainer(train_config, model, train_dataset, test_dataset=test_dataset)
-    max_runs = 6
+    max_runs = 15
     num_runs = 0
     while num_runs < max_runs:
         trainer.run()

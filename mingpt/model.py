@@ -19,6 +19,7 @@ import json
 from transformers import Trainer, TrainingArguments
 
 from mingpt.utils import CfgNode as CN
+from mingpt.m import encode, decode, generate_legal_moves
 
 # -----------------------------------------------------------------------------
 
@@ -318,13 +319,74 @@ class GPT(nn.Module):
         # if we are given some desired targets also calculate the loss
         loss = None
         # num_classes = logits.size(-1)  # Determine the number of classes from logits
-        # one_hot_targets = F.one_hot(targets, num_classes=num_classes)
-        # loss_function = torch.nn.BCEWithLogitsLoss()
-        # loss = loss_function(logits, one_hot_targets.float())
-
-        ###
+        
+        # for these tokens, multiply the corresponding value in logits
+        # the purpose of this is to have the model more attuned to loss here
+        
+                        
         if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            batch_size = targets.size(0)  # Get the batch size
+            sequence_length = logits.size(1)
+    
+            # move_arr = decode(targets.view(-1).cpu().numpy())
+            # mat = generate_legal_moves(move_arr)
+            logits = logits.cpu()
+            logits += 5
+            targets = targets.cpu()
+    
+            illegal_mask = 5 * torch.ones(batch_size, sequence_length, self.vocab_size, dtype=torch.bool)
+
+             # Verify the shape of illegal_mask
+            if illegal_mask.shape[0] != batch_size:
+                raise ValueError("Illegal mask batch size does not match targets batch size")
+
+    
+             # Fill the illegal moves mask safely
+            # for i, moves in enumerate(mat):
+            #     for move in moves:
+            #         if i < illegal_mask.size(1) and move < illegal_mask.size(-1):  # Adjusted index to -1 for last dimension
+            #             illegal_mask[0, i, move] = 1
+
+               # Process each batch element
+            for b in range(batch_size):
+                move_arr = decode(targets[b].view(-1).numpy())
+                mat = generate_legal_moves(move_arr)
+        
+                # Fill the illegal moves mask safely
+                for i, moves in enumerate(mat):
+                    for move in moves:
+                        if move < illegal_mask.size(-1):
+                            illegal_mask[b, i, move] = 1
+            
+            # Create a mask for positive logits
+            positive_logits_mask = logits > 0
+            
+            # Combine the masks to identify positive logits for illegal moves
+            positive_illegal_mask = positive_logits_mask & illegal_mask
+    
+            # Flatten the masks for safe indexing
+            flat_positive_illegal_mask = positive_illegal_mask.view(-1)
+            flat_scaling_mask = torch.ones(logits.numel(), dtype=logits.dtype)
+            
+            # Apply scaling factor only to positive logits for illegal moves
+            scaling_factor = 2  # This can be adjusted as needed
+            flat_scaling_mask[flat_positive_illegal_mask] = scaling_factor
+            scaling_mask = flat_scaling_mask.view_as(logits)
+    
+            # print("Are there ones in the scaling_mask?", (scaling_mask == 1).any().item())
+            # print("Are there 2 in the scaling_mask?", (scaling_mask == 2).any().item())
+    
+            # Ensure the positive illegal mask is correctly shaped
+            if positive_illegal_mask.shape != logits.shape:
+                raise ValueError("Shape mismatch between positive_illegal_mask and logits")
+    
+    
+            scaled_logits = logits * scaling_mask
+            adj_logits = torch.where(positive_logits_mask, scaled_logits, logits)
+    
+            adj_logits = adj_logits.to(device='cuda:0')
+            targets = targets.to(device='cuda:0')
+            loss = F.cross_entropy(adj_logits.view(-1, adj_logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         return logits, loss
 
